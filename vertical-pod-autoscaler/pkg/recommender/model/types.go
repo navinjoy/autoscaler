@@ -39,6 +39,8 @@ const (
 	ResourceCPU ResourceName = "cpu"
 	// ResourceMemory represents memory, in bytes. (500Gi = 500GiB = 500 * 1024 * 1024 * 1024).
 	ResourceMemory ResourceName = "memory"
+	// ResourceJvmHeap represents JVM Heap, in bytes. (500Gi = 500GiB = 500 * 1024 * 1024 * 1024).
+	ResourceJvmHeap ResourceName = "jvmHeap"
 	// MaxResourceAmount is the maximum allowed value of resource amount.
 	MaxResourceAmount = ResourceAmount(1e14)
 )
@@ -89,6 +91,9 @@ func ResourcesAsResourceList(resources Resources) apiv1.ResourceList {
 			newKey = apiv1.ResourceCPU
 			quantity = QuantityFromCPUAmount(resourceAmount)
 		case ResourceMemory:
+			newKey = apiv1.ResourceMemory
+			quantity = QuantityFromMemoryAmount(resourceAmount)
+		case ResourceJvmHeap:
 			newKey = apiv1.ResourceMemory
 			quantity = QuantityFromMemoryAmount(resourceAmount)
 		default:

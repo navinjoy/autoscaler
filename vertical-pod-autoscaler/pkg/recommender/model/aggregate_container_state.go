@@ -185,6 +185,7 @@ func (a *AggregateContainerState) AddSample(sample *ContainerUsageSample) {
 		a.addCPUSample(sample)
 	case ResourceMemory:
 		a.AggregateMemoryPeaks.AddSample(BytesFromMemoryAmount(sample.Usage), 1.0, sample.MeasureStart)
+	case ResourceJvmHeap:
 	default:
 		panic(fmt.Sprintf("AddSample doesn't support resource '%s'", sample.Resource))
 	}
