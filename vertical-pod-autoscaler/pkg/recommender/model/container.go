@@ -18,12 +18,11 @@ package model
 
 import (
 	"fmt"
-	"github.com/kubernetes/autoscaler/vertical-pod-autoscaler/vendor/k8s.io/klog/v2"
+	"k8s.io/klog/v2"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	metrics_quality "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/utils/metrics/quality"
-	"k8s.io/klog/v2"
 )
 
 const (

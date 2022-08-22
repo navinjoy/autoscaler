@@ -10,12 +10,12 @@ require (
 	github.com/prometheus/procfs v0.7.3 // indirect
 	github.com/stretchr/testify v1.7.0
 	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8
-	k8s.io/api v0.24.0
-	k8s.io/apimachinery v0.24.1-rc.0
-	k8s.io/client-go v0.24.0
+	k8s.io/api v0.24.4
+	k8s.io/apimachinery v0.24.4
+	k8s.io/client-go v0.24.4
 	k8s.io/component-base v0.24.0
 	k8s.io/klog/v2 v2.60.1
-	k8s.io/metrics v0.24.0
+	k8s.io/metrics v0.24.4
 	k8s.io/utils v0.0.0-20220210201930-3a6ce19ff2f9
 )
 

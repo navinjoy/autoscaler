@@ -45,6 +45,30 @@ const (
 	MaxResourceAmount = ResourceAmount(1e14)
 )
 
+// CustomMetricName represents the name of the custom metric
+type CustomMetricName string
+
+// namespace_app_pod_jvm_memory_heap_utilization
+// namespace_app_pod_jvm_gc_pause_seconds_avg
+const (
+	// MetricJvmHeapUtil represents Jvm Heap Utilization percentage.
+	MetricJvmHeapUtil CustomMetricName = "jvmHeapUtil"
+	// MetricJvmGcPauseSeconds represents Jvm GC pause seconds
+	MetricJvmGcPauseSeconds CustomMetricName = "jvmGcPauseSeconds"
+)
+
+// CustomMetricValue represents the value of the custom metric
+type CustomMetricValue resource.Quantity
+
+// CustomMetricNames is a map from CustomMetricName to the custom metric name in API
+var CustomMetricNames = map[CustomMetricName]string{
+	MetricJvmHeapUtil:       "namespace_app_pod_jvm_memory_heap_utilization",
+	MetricJvmGcPauseSeconds: "namespace_app_pod_jvm_gc_pause_seconds_avg",
+}
+
+// CustomMetrics is a map from CustomMetricName to the corresponding CustomMetricValue
+type CustomMetrics map[CustomMetricName]CustomMetricValue
+
 // CPUAmountFromCores converts CPU cores to a ResourceAmount.
 func CPUAmountFromCores(cores float64) ResourceAmount {
 	return resourceAmountFromFloat(cores * 1000.0)

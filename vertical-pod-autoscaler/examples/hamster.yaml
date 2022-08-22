@@ -9,12 +9,17 @@ apiVersion: "autoscaling.k8s.io/v1"
 kind: VerticalPodAutoscaler
 metadata:
   name: hamster-vpa
+  labels:
+    app: hampster
+  annotations:
+    "autoscaling.k8s.io/jvm_in_containers": "hamster"
+    "autoscaling.k8s.io/jvm_max_ram_percentage": 80
 spec:
   # recommenders field can be unset when using the default recommender.
   # When using an alternative recommender, the alternative recommender's name
   # can be specified as the following in a list.
-  # recommenders: 
-  #   - name: 'alternative'
+ recommenders:
+     - name: 'ipa'
   targetRef:
     apiVersion: "apps/v1"
     kind: Deployment
