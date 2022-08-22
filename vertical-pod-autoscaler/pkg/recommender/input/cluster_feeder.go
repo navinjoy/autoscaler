@@ -19,6 +19,9 @@ package input
 import (
 	"context"
 	"fmt"
+	"k8s.io/client-go/discovery"
+	cacheddiscovery "k8s.io/client-go/discovery/cached"
+	"k8s.io/client-go/restmapper"
 	"time"
 
 	apiv1 "k8s.io/api/core/v1"
@@ -48,6 +51,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/klog/v2"
 	resourceclient "k8s.io/metrics/pkg/client/clientset/versioned/typed/metrics/v1beta1"
+	customClient "k8s.io/metrics/pkg/client/custom_metrics"
 )
 
 const (
@@ -94,6 +98,7 @@ type ClusterStateFeederFactory struct {
 	SelectorFetcher     target.VpaTargetSelectorFetcher
 	MemorySaveMode      bool
 	ControllerFetcher   controllerfetcher.ControllerFetcher
+	CustomMetricsClient metrics.CustomMetricsClient
 }
 
 // Make creates new ClusterStateFeeder with internal data providers, based on kube client.
@@ -131,12 +136,23 @@ func NewClusterStateFeeder(config *rest.Config, clusterState *model.ClusterState
 		SelectorFetcher:     target.NewVpaTargetSelectorFetcher(config, kubeClient, factory),
 		MemorySaveMode:      memorySave,
 		ControllerFetcher:   controllerFetcher,
+		CustomMetricsClient: newCustomMetricsClient(config, namespace),
 	}.Make()
 }
 
 func newMetricsClient(config *rest.Config, namespace string) metrics.MetricsClient {
 	metricsGetter := resourceclient.NewForConfigOrDie(config)
 	return metrics.NewMetricsClient(metricsGetter, namespace)
+}
+
+func newCustomMetricsClient(config *rest.Config, namespace string) metrics.CustomMetricsClient {
+	discoveryClient := discovery.NewDiscoveryClientForConfigOrDie(config)
+	cachedDiscoClient := cacheddiscovery.NewMemCacheClient(discoveryClient)
+	restMapper := restmapper.NewDeferredDiscoveryRESTMapper(cachedDiscoClient)
+	restMapper.Reset()
+	apiVersionsGetter := customClient.NewAvailableAPIsGetter(discoveryClient)
+	customMetricsClient := customClient.NewForConfig(config, restMapper, apiVersionsGetter)
+	return metrics.NewCustomMetricsClient(customMetricsClient, namespace)
 }
 
 // WatchEvictionEventsWithRetries watches new Events with reason=Evicted and passes them to the observer.
@@ -224,6 +240,7 @@ type clusterStateFeeder struct {
 	selectorFetcher     target.VpaTargetSelectorFetcher
 	memorySaveMode      bool
 	controllerFetcher   controllerfetcher.ControllerFetcher
+	customMetricsClient metrics.CustomMetricsClient
 }
 
 func (feeder *clusterStateFeeder) InitFromHistoryProvider(historyProvider history.HistoryProvider) {

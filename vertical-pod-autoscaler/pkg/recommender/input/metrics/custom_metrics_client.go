@@ -25,31 +25,31 @@ type CustomMetricsSnapshot struct {
 type CustomMetricsClient interface {
 	// GetCustomMetrics returns a CustomMetricsSnapshot,
 	// representing custom metrics for every running pod in the cluster
-	GetCustomMetrics(appName string) (*CustomMetricsSnapshot, error)
+	GetCustomMetrics(namespace string, appName string) (*CustomMetricsSnapshot, error)
 }
 
 type customMetricsClient struct {
-	metricsGetter customClient.NamespacedMetricsGetter
-	namespace     string
+	metricsGetter     customClient.NamespacedMetricsGetter
+	namespaceSelector string
 }
 
 // NewCustomMetricsClient creates new instance of CustomMetricsClient, which is used by recommender.
 // It requires an instance of NamespacedMetricsGetter, which is used for underlying communication with metrics server.
 // namespace limits queries to particular namespace, use k8sapiv1.NamespaceAll to select all namespaces.
-func NewCustomMetricsClient(metricsGetter customClient.NamespacedMetricsGetter, namespace string) CustomMetricsClient {
+func NewCustomMetricsClient(metricsGetter customClient.NamespacedMetricsGetter, namespaceSelector string) CustomMetricsClient {
 	return &customMetricsClient{
-		metricsGetter: metricsGetter,
-		namespace:     namespace,
+		metricsGetter:     metricsGetter,
+		namespaceSelector: namespaceSelector,
 	}
 }
 
-func (c *customMetricsClient) GetCustomMetrics(appName string) (*CustomMetricsSnapshot, error) {
+func (c *customMetricsClient) GetCustomMetrics(namespace string, appName string) (*CustomMetricsSnapshot, error) {
 	var metricsSnapshot = &CustomMetricsSnapshot{
 		AppName:       appName,
 		CustomMetrics: make(model.CustomMetrics),
 	}
 
-	metricsInterface := c.metricsGetter.NamespacedMetrics(c.namespace)
+	metricsInterface := c.metricsGetter.NamespacedMetrics(namespace)
 
 	for metric, metricName := range model.CustomMetricNames {
 		klog.V(3).Infof("Getting metric value %s, apps=%s ", metricName, appName)
