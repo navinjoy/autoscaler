@@ -19,9 +19,12 @@ package input
 import (
 	"context"
 	"fmt"
+	"k8s.io/autoscaler/vertical-pod-autoscaler/pkg/recommender/logic"
 	"k8s.io/client-go/discovery"
 	cacheddiscovery "k8s.io/client-go/discovery/cached"
 	"k8s.io/client-go/restmapper"
+	"strconv"
+	"strings"
 	"time"
 
 	apiv1 "k8s.io/api/core/v1"
@@ -81,6 +84,10 @@ type ClusterStateFeeder interface {
 
 	// LoadRealTimeMetrics updates clusterState with current usage metrics of containers.
 	LoadRealTimeMetrics()
+
+	// ApplyJvmRecommendation updates clusterState with current custom metrics of app.
+	ApplyJvmRecommendation(observedVpa *vpa_types.VerticalPodAutoscaler, vpa *model.Vpa,
+		containerNameToAggregateStateMap model.ContainerNameToAggregateStateMap, recommendation logic.RecommendedPodResources)
 
 	// GarbageCollectCheckpoints removes historical checkpoints that don't have a matching VPA.
 	GarbageCollectCheckpoints()
@@ -376,7 +383,7 @@ func filterVPAs(feeder *clusterStateFeeder, allVpaCRDs []*vpa_types.VerticalPodA
 	return vpaCRDs
 }
 
-// Fetch VPA objects and load them into the cluster state.
+// LoadVPAs Fetch VPA objects and load them into the cluster state.
 func (feeder *clusterStateFeeder) LoadVPAs() {
 	// List VPA API objects.
 	allVpaCRDs, err := feeder.vpaLister.List(labels.Everything())
@@ -425,7 +432,7 @@ func (feeder *clusterStateFeeder) LoadVPAs() {
 	feeder.clusterState.ObservedVpas = vpaCRDs
 }
 
-// Load pod into the cluster state.
+// LoadPods into the cluster state.
 func (feeder *clusterStateFeeder) LoadPods() {
 	podSpecs, err := feeder.specClient.GetPodSpecs()
 	if err != nil {
@@ -490,6 +497,66 @@ Loop:
 		}
 	}
 	metrics_recommender.RecordAggregateContainerStatesCount(feeder.clusterState.StateMapSize())
+}
+
+func (feeder *clusterStateFeeder) ApplyJvmRecommendation(observedVpa *vpa_types.VerticalPodAutoscaler, vpa *model.Vpa,
+	containerNameToAggregateStateMap model.ContainerNameToAggregateStateMap, recommendation logic.RecommendedPodResources) {
+
+	labels := observedVpa.GetLabels()
+	if isJvm, ok := labels[model.LabelJvm]; ok && strings.EqualFold(isJvm, "true") {
+		if appName, hasApp := labels[model.LabelApp]; hasApp {
+			customMetricsSnapshot, err := feeder.customMetricsClient.GetCustomMetrics(observedVpa.Namespace, appName)
+			if err != nil {
+				klog.Warningf("Loading custom metrics error %v for VPA %s in namespace %s", err, observedVpa.Name, observedVpa.Namespace)
+			} else {
+				// Spare time --> Needs to decrease memory
+				//   - GC paused seconds < 0.1s
+				//   - JVM Heap utilization < 60
+				// Busy time --> Needs to increase memory
+				//   - GC paused seconds >= 0.2s
+				//   - JVM Heap utilization >= 80
+				customMetrics := customMetricsSnapshot.CustomMetrics
+				gcPauseSeconds, hasGc := customMetrics[model.MetricJvmGcPauseSeconds]
+				jvmHeapUtil, hasJvmHeap := customMetrics[model.MetricJvmHeapUtil]
+				if hasGc && hasJvmHeap {
+					floatJvmHeapUtil := jvmHeapUtil.AsApproximateFloat64()
+					floatGcPauseSeconds := gcPauseSeconds.AsApproximateFloat64()
+					var toIncreaseMemory = false
+					var toDecreaseMemory = false
+					if floatJvmHeapUtil > 90 {
+						toIncreaseMemory = true
+					} else if floatJvmHeapUtil >= 80 && floatGcPauseSeconds >= 0.2 {
+						toIncreaseMemory = true
+					}
+					if floatJvmHeapUtil < 60 && floatGcPauseSeconds < 0.1 {
+						toDecreaseMemory = true
+					}
+					if toIncreaseMemory || toDecreaseMemory {
+						containerName := model.DefaultJvmInContainer
+						if containers, hasContainerAnnotation := observedVpa.GetAnnotations()[model.AnnotationJvmInContainers]; hasContainerAnnotation {
+							containerName = containers
+						}
+						klog.Infof("VPA Spec %s in namespace %s needs to adjust memory for container:%s", observedVpa.Name, observedVpa.Namespace, containerName)
+
+						percentage := model.DefaultJvmMaxRamPercentage
+						if percentInContainer, hasContainerAnnotation := observedVpa.GetAnnotations()[model.AnnotationJvmMaxRamPercentage]; hasContainerAnnotation {
+							value, err := strconv.ParseInt(percentInContainer, 10, 8)
+							if err == nil {
+								percentage = value
+							}
+						}
+
+						podIds := feeder.clusterState.GetMatchingPods(vpa)
+
+					}
+				} else {
+					klog.Warningf("VPA Spec %s in namespace %s is ignored since JVM Heap utilization or gc paused metric is missing", observedVpa.Name, observedVpa.Namespace)
+				}
+			}
+		} else {
+			klog.Warningf("VPA Spec %s in namespace %s has label 'jvm' but doesn't have required label 'app'", observedVpa.Name, observedVpa.Namespace)
+		}
+	}
 }
 
 func (feeder *clusterStateFeeder) matchesVPA(pod *spec.BasicPodSpec) bool {

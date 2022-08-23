@@ -89,7 +89,7 @@ func (r *recommender) GetClusterStateFeeder() input.ClusterStateFeeder {
 	return r.clusterStateFeeder
 }
 
-// Updates VPA CRD objects' statuses.
+// UpdateVPAs Updates VPA CRD objects' statuses.
 func (r *recommender) UpdateVPAs() {
 	cnt := metrics_recommender.NewObjectCounter()
 	defer cnt.Observe()
@@ -104,7 +104,12 @@ func (r *recommender) UpdateVPAs() {
 		if !found {
 			continue
 		}
-		resources := r.podResourceRecommender.GetRecommendedPodResources(GetContainerNameToAggregateStateMap(vpa))
+		containerNameToAggregateStateMap := GetContainerNameToAggregateStateMap(vpa)
+		resources := r.podResourceRecommender.GetRecommendedPodResources(containerNameToAggregateStateMap)
+
+		// Apply JVM correctness
+		r.clusterStateFeeder.ApplyJvmRecommendation(observedVpa, vpa, containerNameToAggregateStateMap, resources)
+
 		had := vpa.HasRecommendation()
 		vpa.UpdateRecommendation(getCappedRecommendation(vpa.ID, resources, observedVpa.Spec.ResourcePolicy))
 		if vpa.HasRecommendation() && !had {

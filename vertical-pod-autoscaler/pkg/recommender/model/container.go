@@ -58,18 +58,12 @@ type ContainerState struct {
 	LastCPUSampleStart time.Time
 	// Max memory usage observed in the current aggregation interval.
 	memoryPeak ResourceAmount
-	// Max JVM heap usage observed in the current aggregation interval.
-	jvmHeapPeak ResourceAmount
 	// Max memory usage estimated from an OOM event in the current aggregation interval.
 	oomPeak ResourceAmount
-	// Max JVM memory OOM events in the current aggregation interval.
-	jvmOomPeak ResourceAmount
 	// End time of the current memory aggregation interval (not inclusive).
 	WindowEnd time.Time
 	// Start of the latest memory usage sample that was aggregated.
 	lastMemorySampleStart time.Time
-	// Start of the latest Jvm Heap usage sample that was aggregated.
-	lastJvmHeapSampleStart time.Time
 	// Aggregation to add usage samples to.
 	aggregator ContainerStateAggregator
 }
@@ -77,12 +71,11 @@ type ContainerState struct {
 // NewContainerState returns a new ContainerState.
 func NewContainerState(request Resources, aggregator ContainerStateAggregator) *ContainerState {
 	return &ContainerState{
-		Request:                request,
-		LastCPUSampleStart:     time.Time{},
-		WindowEnd:              time.Time{},
-		lastMemorySampleStart:  time.Time{},
-		lastJvmHeapSampleStart: time.Time{},
-		aggregator:             aggregator,
+		Request:               request,
+		LastCPUSampleStart:    time.Time{},
+		WindowEnd:             time.Time{},
+		lastMemorySampleStart: time.Time{},
+		aggregator:            aggregator,
 	}
 }
 
@@ -138,11 +131,6 @@ func (container *ContainerState) observeQualityMetrics(usage ResourceAmount, isO
 // GetMaxMemoryPeak returns maximum memory usage in the sample, possibly estimated from OOM
 func (container *ContainerState) GetMaxMemoryPeak() ResourceAmount {
 	return ResourceAmountMax(container.memoryPeak, container.oomPeak)
-}
-
-// GetMaxJvmHeapPeak returns maximum memory usage in the sample, possibly estimated from JVM OOM
-func (container *ContainerState) GetMaxJvmHeapPeak() ResourceAmount {
-	return ResourceAmountMax(container.jvmHeapPeak, container.jvmOomPeak)
 }
 
 func (container *ContainerState) addMemorySample(sample *ContainerUsageSample, isOOM bool) bool {
@@ -202,64 +190,6 @@ func (container *ContainerState) addMemorySample(sample *ContainerUsageSample, i
 	return true
 }
 
-// Add JVM Heap Sample
-func (container *ContainerState) addJvmHeapSample(sample *ContainerUsageSample, isOOM bool) bool {
-	ts := sample.MeasureStart
-	// We always process OOM samples.
-	if !sample.isValid(ResourceJvmHeap) ||
-		(!isOOM && ts.Before(container.lastJvmHeapSampleStart)) {
-		return false // Discard invalid or outdated samples.
-	}
-	container.lastJvmHeapSampleStart = ts
-	if container.WindowEnd.IsZero() { // This is the first sample.
-		container.WindowEnd = ts
-	}
-
-	// Each container aggregates one peak per aggregation interval. If the timestamp of the
-	// current sample is earlier than the end of the current interval (WindowEnd) and is larger
-	// than the current peak, the peak is updated in the aggregation by subtracting the old value
-	// and adding the new value.
-	addNewPeak := false
-	if ts.Before(container.WindowEnd) {
-		oldMaxJvmHeap := container.GetMaxJvmHeapPeak()
-		if oldMaxJvmHeap != 0 && sample.Usage > oldMaxJvmHeap {
-			// Remove the old peak.
-			oldPeak := ContainerUsageSample{
-				MeasureStart: container.WindowEnd,
-				Usage:        oldMaxJvmHeap,
-				Request:      sample.Request,
-				Resource:     ResourceJvmHeap,
-			}
-			container.aggregator.SubtractSample(&oldPeak)
-			addNewPeak = true
-		}
-	} else {
-		// Shift the memory aggregation window to the next interval.
-		memoryAggregationInterval := GetAggregationsConfig().MemoryAggregationInterval
-		shift := truncate(ts.Sub(container.WindowEnd), memoryAggregationInterval) + memoryAggregationInterval
-		container.WindowEnd = container.WindowEnd.Add(shift)
-		container.jvmHeapPeak = 0
-		container.jvmOomPeak = 0
-		addNewPeak = true
-	}
-	container.observeQualityMetrics(sample.Usage, isOOM, corev1.ResourceMemory)
-	if addNewPeak {
-		newPeak := ContainerUsageSample{
-			MeasureStart: container.WindowEnd,
-			Usage:        sample.Usage,
-			Request:      sample.Request,
-			Resource:     ResourceJvmHeap,
-		}
-		container.aggregator.AddSample(&newPeak)
-		if isOOM {
-			container.oomPeak = sample.Usage
-		} else {
-			container.memoryPeak = sample.Usage
-		}
-	}
-	return true
-}
-
 // RecordOOM adds info regarding OOM event in the model as an artificial memory sample.
 func (container *ContainerState) RecordOOM(timestamp time.Time, requestedMemory ResourceAmount) error {
 	// Discard old OOM
@@ -285,24 +215,25 @@ func (container *ContainerState) RecordOOM(timestamp time.Time, requestedMemory 
 
 // RecordJVMOOM adds info regarding JVM OOM event in the model as an artificial jvm Heap sample.
 func (container *ContainerState) RecordJVMOOM(timestamp time.Time, requestedHeap ResourceAmount) error {
-	// Discard old OOM
-	if timestamp.Before(container.WindowEnd.Add(-1 * GetAggregationsConfig().MemoryAggregationInterval)) {
-		return fmt.Errorf("JVM OOM event will be discarded - it is too old (%v)", timestamp)
-	}
-	// Get max of the request and the recent usage-based memory peak.
-	// Omitting oomPeak here to protect against recommendation running too high on subsequent OOMs.
-	jvmHeapUsed := ResourceAmountMax(requestedHeap, container.jvmHeapPeak)
-	jvmHeapNeeded := ResourceAmountMax(jvmHeapUsed+MemoryAmountFromBytes(OOMMinBumpUp),
-		ScaleResource(jvmHeapUsed, OOMBumpUpRatio))
-
-	javaOomSample := ContainerUsageSample{
-		MeasureStart: timestamp,
-		Usage:        jvmHeapNeeded,
-		Resource:     ResourceJvmHeap,
-	}
-	if !container.addJvmHeapSample(&javaOomSample, true) {
-		return fmt.Errorf("adding JVM OOM sample failed")
-	}
+	//TODO
+	//// Discard old OOM
+	//if timestamp.Before(container.WindowEnd.Add(-1 * GetAggregationsConfig().MemoryAggregationInterval)) {
+	//	return fmt.Errorf("JVM OOM event will be discarded - it is too old (%v)", timestamp)
+	//}
+	//// Get max of the request and the recent usage-based memory peak.
+	//// Omitting oomPeak here to protect against recommendation running too high on subsequent OOMs.
+	//jvmHeapUsed := ResourceAmountMax(requestedHeap, container.jvmHeapPeak)
+	//jvmHeapNeeded := ResourceAmountMax(jvmHeapUsed+MemoryAmountFromBytes(OOMMinBumpUp),
+	//	ScaleResource(jvmHeapUsed, OOMBumpUpRatio))
+	//
+	//javaOomSample := ContainerUsageSample{
+	//	MeasureStart: timestamp,
+	//	Usage:        jvmHeapNeeded,
+	//	Resource:     ResourceMemory,
+	//}
+	//if !container.addMemorySample(&javaOomSample, true) {
+	//	return fmt.Errorf("adding JVM OOM sample failed")
+	//}
 	return nil
 }
 
@@ -319,8 +250,6 @@ func (container *ContainerState) AddSample(sample *ContainerUsageSample) bool {
 		return container.addCPUSample(sample)
 	case ResourceMemory:
 		return container.addMemorySample(sample, false)
-	case ResourceJvmHeap:
-		return container.addJvmHeapSample(sample, false)
 	default:
 		return false
 	}
