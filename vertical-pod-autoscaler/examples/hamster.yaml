@@ -14,7 +14,6 @@ metadata:
     jvm: true
   annotations:
     "autoscaling.k8s.io/jvm_in_containers": "hamster"
-    "autoscaling.k8s.io/jvm_max_ram_percentage": 80
 spec:
   # recommenders field can be unset when using the default recommender.
   # When using an alternative recommender, the alternative recommender's name

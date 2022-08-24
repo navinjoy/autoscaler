@@ -7,14 +7,10 @@ const (
 	LabelJvm string = "jvm"
 	// LabelApp represents the group of the pods with same service container
 	LabelApp string = "app"
-	// AnnotationJvmInContainers indicates the JVM containers in the pod
-	AnnotationJvmInContainers string = "autoscaling.k8s.io/jvm_in_containers"
-	// AnnotationJvmMaxRamPercentage indicates the JVM max ram percentage of the max container memory limit
-	AnnotationJvmMaxRamPercentage string = "autoscaling.k8s.io/jvm_max_ram_percentage"
-	// DefaultJvmInContainer default container runs JVM
-	DefaultJvmInContainer string = "app"
-	// DefaultJvmMaxRamPercentage represents the default jvm max ram percentage
-	DefaultJvmMaxRamPercentage int64 = 80
+	// AnnotationAppContainer indicates the JVM containers in the pod
+	AnnotationAppContainer string = "autoscaling.k8s.io/app_container"
+	// DefaultAppContainer default container runs JVM
+	DefaultAppContainer string = "app"
 )
 
 // CustomMetricName represents the name of the custom metric
@@ -27,12 +23,18 @@ const (
 	MetricJvmHeapUtil CustomMetricName = "jvmHeapUtil"
 	// MetricJvmGcPauseSeconds represents Jvm GC pause seconds
 	MetricJvmGcPauseSeconds CustomMetricName = "jvmGcPauseSeconds"
+	// MetricAppContainerMaxMemoryLimits represents the maximum memory limit across pods with same app label
+	MetricAppContainerMaxMemoryLimits CustomMetricName = "appContainerMaxMemoryLimits"
+	// MetricAppContainerMinMemoryLimits represents the minimum memory limit across pods with same app label
+	MetricAppContainerMinMemoryLimits CustomMetricName = "appContainerMinMemoryLimits"
 )
 
 // CustomMetricNames is a map from CustomMetricName to the custom metric name in API
 var CustomMetricNames = map[CustomMetricName]string{
-	MetricJvmHeapUtil:       "namespace_app_pod_jvm_memory_heap_utilization",
-	MetricJvmGcPauseSeconds: "namespace_app_pod_jvm_gc_pause_seconds_avg",
+	MetricJvmHeapUtil:                 "namespace_app_pod_jvm_memory_heap_utilization",
+	MetricJvmGcPauseSeconds:           "namespace_app_pod_jvm_gc_pause_seconds_avg",
+	MetricAppContainerMaxMemoryLimits: "namespace_app_container_app_max_memory_limits",
+	MetricAppContainerMinMemoryLimits: "namespace_app_container_app_max_memory_limits",
 }
 
 // CustomMetrics is a map from CustomMetricName to the corresponding CustomMetricValue

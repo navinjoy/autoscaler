@@ -23,7 +23,6 @@ import (
 	"k8s.io/client-go/discovery"
 	cacheddiscovery "k8s.io/client-go/discovery/cached"
 	"k8s.io/client-go/restmapper"
-	"strconv"
 	"strings"
 	"time"
 
@@ -532,21 +531,32 @@ func (feeder *clusterStateFeeder) ApplyJvmRecommendation(observedVpa *vpa_types.
 						toDecreaseMemory = true
 					}
 					if toIncreaseMemory || toDecreaseMemory {
-						containerName := model.DefaultJvmInContainer
-						if containers, hasContainerAnnotation := observedVpa.GetAnnotations()[model.AnnotationJvmInContainers]; hasContainerAnnotation {
-							containerName = containers
+						containerName := model.DefaultAppContainer
+						if container, hasContainerAnnotation := observedVpa.GetAnnotations()[model.AnnotationAppContainer]; hasContainerAnnotation {
+							containerName = container
 						}
 						klog.Infof("VPA Spec %s in namespace %s needs to adjust memory for container:%s", observedVpa.Name, observedVpa.Namespace, containerName)
 
-						percentage := model.DefaultJvmMaxRamPercentage
-						if percentInContainer, hasContainerAnnotation := observedVpa.GetAnnotations()[model.AnnotationJvmMaxRamPercentage]; hasContainerAnnotation {
-							value, err := strconv.ParseInt(percentInContainer, 10, 8)
-							if err == nil {
-								percentage = value
+						//Check whether the container exists
+						if containerState, ok := containerNameToAggregateStateMap[containerName]; ok {
+							if containerState.NeedsRecommendation() {
+								if toIncreaseMemory {
+									if minMemory, hasMin := customMetrics[model.MetricAppContainerMinMemoryLimits]; hasMin && minMemory.AsApproximateFloat64() > 0 {
+										recommendation[containerName].Target[model.ResourceMemory] =
+											model.ResourceAmount(minMemory.AsApproximateFloat64() * 1.2)
+									}
+								} else if toDecreaseMemory {
+									if maxMemory, hasMax := customMetrics[model.MetricAppContainerMaxMemoryLimits]; hasMax && maxMemory.AsApproximateFloat64() > 0 {
+										recommendation[containerName].Target[model.ResourceMemory] =
+											model.ResourceAmount(maxMemory.AsApproximateFloat64() * 0.9)
+									}
+								}
+								klog.Infof("The container %s of VPA Spec %s in namespace %s got new memory: %d",
+									containerName, observedVpa.Name, observedVpa.Namespace, recommendation[containerName].Target[model.ResourceMemory])
 							}
+						} else {
+							klog.Warningf("The container %s in annotation of VPA Spec %s in namespace %s doesn't exist", containerName, observedVpa.Name, observedVpa.Namespace)
 						}
-
-						podIds := feeder.clusterState.GetMatchingPods(vpa)
 
 					}
 				} else {

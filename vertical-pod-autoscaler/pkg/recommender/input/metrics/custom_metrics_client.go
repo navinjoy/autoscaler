@@ -64,7 +64,7 @@ func (c *customMetricsClient) GetCustomMetrics(namespace string, appName string)
 		} else {
 			metricsSnapshot.SnapshotTime = metricValue.Timestamp.Time
 			metricsSnapshot.SnapshotWindow = time.Duration(*metricValue.WindowSeconds)
-			metricsSnapshot.CustomMetrics[metric] = model.CustomMetricValue(metricValue.Value)
+			metricsSnapshot.CustomMetrics[metric] = metricValue.Value
 		}
 	}
 

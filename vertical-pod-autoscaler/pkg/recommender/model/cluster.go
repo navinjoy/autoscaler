@@ -273,6 +273,7 @@ func (cluster *ClusterState) AddOrUpdateVpa(apiObject *vpa_types.VerticalPodAuto
 		}
 		vpa.PodCount = len(cluster.GetMatchingPods(vpa))
 	}
+
 	vpa.TargetRef = apiObject.Spec.TargetRef
 	vpa.Annotations = annotationsMap
 	vpa.Conditions = conditionsMap
