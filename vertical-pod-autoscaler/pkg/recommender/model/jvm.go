@@ -34,7 +34,7 @@ var CustomMetricNames = map[CustomMetricName]string{
 	MetricJvmHeapUtil:                 "namespace_app_pod_jvm_memory_heap_utilization",
 	MetricJvmGcPauseSeconds:           "namespace_app_pod_jvm_gc_pause_seconds_avg",
 	MetricAppContainerMaxMemoryLimits: "namespace_app_container_app_max_memory_limits",
-	MetricAppContainerMinMemoryLimits: "namespace_app_container_app_max_memory_limits",
+	MetricAppContainerMinMemoryLimits: "namespace_app_container_app_min_memory_limits",
 }
 
 // CustomMetrics is a map from CustomMetricName to the corresponding CustomMetricValue

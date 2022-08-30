@@ -47,7 +47,7 @@ var (
 
 	storage = flag.String("storage", "", `Specifies storage mode. Supported values: prometheus, checkpoint (default)`)
 	// prometheus history provider configs
-	historyLength       = flag.String("history-l\thistoryLength       = flag.String(\"history-length\", \"8d\", `How much time back prometheus have to be queried to get historical metrics`)\nength", "8d", `How much time back prometheus have to be queried to get historical metrics`)
+	historyLength       = flag.String("history-length", "8d", `How much time back prometheus have to be queried to get historical metrics`)
 	historyResolution   = flag.String("history-resolution", "1h", `Resolution at which Prometheus is queried for historical metrics`)
 	queryTimeout        = flag.String("prometheus-query-timeout", "5m", `How long to wait before killing long queries`)
 	podLabelPrefix      = flag.String("pod-label-prefix", "pod_label_", `Which prefix to look for pod labels in metrics`)
