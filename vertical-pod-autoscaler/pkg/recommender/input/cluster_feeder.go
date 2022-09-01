@@ -502,12 +502,13 @@ Loop:
 func (feeder *clusterStateFeeder) ApplyJvmRecommendation(observedVpa *vpa_types.VerticalPodAutoscaler, vpa *model.Vpa,
 	containerNameToAggregateStateMap model.ContainerNameToAggregateStateMap, recommendation logic.RecommendedPodResources) {
 
+	labels := observedVpa.GetLabels()
 	annotations := observedVpa.GetAnnotations()
 	klog.Infof("VPA %s:%s annotations: %s", observedVpa.Namespace, observedVpa.Name, annotations[model.AnnotationJvm])
 
 	if isJvm, ok := annotations[model.AnnotationJvm]; ok && strings.EqualFold(isJvm, "true") {
 		klog.Infof("VPA %s:%s has JVM", observedVpa.Namespace, observedVpa.Name)
-		if appName, hasApp := annotations[model.AnnotationApp]; hasApp {
+		if appName, hasApp := labels[model.LabelApp]; hasApp {
 			klog.Infof("VPA %s:%s belongs to app:%s", observedVpa.Namespace, observedVpa.Name, appName)
 			customMetricsSnapshot, err := feeder.customMetricsClient.GetCustomMetrics(observedVpa.Namespace, appName)
 			if err != nil {
@@ -541,7 +542,7 @@ func (feeder *clusterStateFeeder) ApplyJvmRecommendation(observedVpa *vpa_types.
 
 					if toIncreaseMemory || toDecreaseMemory {
 						containerName := model.DefaultAppContainer
-						if container, hasContainerAnnotation := observedVpa.GetAnnotations()[model.AnnotationAppContainer]; hasContainerAnnotation {
+						if container, hasContainerAnnotation := annotations[model.AnnotationAppContainer]; hasContainerAnnotation {
 							containerName = container
 						}
 						klog.Infof("VPA Spec %s in namespace %s needs to adjust memory for container:%s", observedVpa.Name, observedVpa.Namespace, containerName)

@@ -9,7 +9,7 @@ GOOS?=linux
 COMPONENT=recommender
 FULL_COMPONENT=vpa-${COMPONENT}
 
-ALL_ARCHITECTURES?=amd64 arm arm64 ppc64le s390x
+ALL_ARCHITECTURES?=amd64 arm64
 export DOCKER_CLI_EXPERIMENTAL=enabled
 
 build: clean
