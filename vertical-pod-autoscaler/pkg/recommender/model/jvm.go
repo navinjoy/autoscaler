@@ -3,10 +3,10 @@ package model
 import "k8s.io/apimachinery/pkg/api/resource"
 
 const (
-	// LabelJvm represents the service container is a JVM service
-	LabelJvm string = "jvm"
-	// LabelApp represents the group of the pods with same service container
-	LabelApp string = "app"
+	// AnnotationJvm represents the service container is a JVM service
+	AnnotationJvm string = "autoscaling.k8s.io/jvm"
+	// AnnotationApp represents the group of the pods with same service container
+	AnnotationApp string = "autoscaling.k8s.io/app"
 	// AnnotationAppContainer indicates the JVM containers in the pod
 	AnnotationAppContainer string = "autoscaling.k8s.io/app_container"
 	// DefaultAppContainer default container runs JVM

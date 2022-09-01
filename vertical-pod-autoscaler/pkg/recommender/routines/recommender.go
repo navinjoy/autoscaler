@@ -108,6 +108,7 @@ func (r *recommender) UpdateVPAs() {
 		resources := r.podResourceRecommender.GetRecommendedPodResources(containerNameToAggregateStateMap)
 
 		// Apply JVM correctness
+		klog.Infof("Apply JVM correctness on VPA with JVM settings")
 		r.clusterStateFeeder.ApplyJvmRecommendation(observedVpa, vpa, containerNameToAggregateStateMap, resources)
 
 		had := vpa.HasRecommendation()

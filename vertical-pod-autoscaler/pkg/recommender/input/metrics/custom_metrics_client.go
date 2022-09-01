@@ -6,17 +6,12 @@ import (
 	"k8s.io/autoscaler/vertical-pod-autoscaler/pkg/recommender/model"
 	"k8s.io/klog/v2"
 	customClient "k8s.io/metrics/pkg/client/custom_metrics"
-	"time"
 )
 
 // CustomMetricsSnapshot contains information about usage of certain container within defined time window.
 type CustomMetricsSnapshot struct {
 	//AppName represents the group of pods in the namespace
 	AppName string
-	// End time of the measurement interval.
-	SnapshotTime time.Time
-	// Duration of the measurement interval, which is [SnapshotTime - SnapshotWindow, SnapshotTime].
-	SnapshotWindow time.Duration
 	// Actual custom metrics
 	CustomMetrics model.CustomMetrics
 }
@@ -62,8 +57,7 @@ func (c *customMetricsClient) GetCustomMetrics(namespace string, appName string)
 		if err != nil {
 			klog.V(1).Infof("Query metric %s error %v", metricName, err)
 		} else {
-			metricsSnapshot.SnapshotTime = metricValue.Timestamp.Time
-			metricsSnapshot.SnapshotWindow = time.Duration(*metricValue.WindowSeconds)
+			klog.Infof("Query metric %s value %v", metricName, metricValue.Value)
 			metricsSnapshot.CustomMetrics[metric] = metricValue.Value
 		}
 	}

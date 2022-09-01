@@ -120,6 +120,7 @@ func (m ClusterStateFeederFactory) Make() *clusterStateFeeder {
 		selectorFetcher:     m.SelectorFetcher,
 		memorySaveMode:      m.MemorySaveMode,
 		controllerFetcher:   m.ControllerFetcher,
+		customMetricsClient: m.CustomMetricsClient,
 	}
 }
 
@@ -501,13 +502,19 @@ Loop:
 func (feeder *clusterStateFeeder) ApplyJvmRecommendation(observedVpa *vpa_types.VerticalPodAutoscaler, vpa *model.Vpa,
 	containerNameToAggregateStateMap model.ContainerNameToAggregateStateMap, recommendation logic.RecommendedPodResources) {
 
-	labels := observedVpa.GetLabels()
-	if isJvm, ok := labels[model.LabelJvm]; ok && strings.EqualFold(isJvm, "true") {
-		if appName, hasApp := labels[model.LabelApp]; hasApp {
+	annotations := observedVpa.GetAnnotations()
+	klog.Infof("VPA %s:%s annotations: %s", observedVpa.Namespace, observedVpa.Name, annotations[model.AnnotationJvm])
+
+	if isJvm, ok := annotations[model.AnnotationJvm]; ok && strings.EqualFold(isJvm, "true") {
+		klog.Infof("VPA %s:%s has JVM", observedVpa.Namespace, observedVpa.Name)
+		if appName, hasApp := annotations[model.AnnotationApp]; hasApp {
+			klog.Infof("VPA %s:%s belongs to app:%s", observedVpa.Namespace, observedVpa.Name, appName)
 			customMetricsSnapshot, err := feeder.customMetricsClient.GetCustomMetrics(observedVpa.Namespace, appName)
 			if err != nil {
 				klog.Warningf("Loading custom metrics error %v for VPA %s in namespace %s", err, observedVpa.Name, observedVpa.Namespace)
 			} else {
+				klog.Infof("VPA %s:%s loaded %d metrics ", observedVpa.Namespace, observedVpa.Name, len(customMetricsSnapshot.CustomMetrics))
+
 				// Spare time --> Needs to decrease memory
 				//   - GC paused seconds < 0.1s
 				//   - JVM Heap utilization < 60
@@ -527,9 +534,11 @@ func (feeder *clusterStateFeeder) ApplyJvmRecommendation(observedVpa *vpa_types.
 					} else if floatJvmHeapUtil >= 80 && floatGcPauseSeconds >= 0.2 {
 						toIncreaseMemory = true
 					}
-					if floatJvmHeapUtil < 60 && floatGcPauseSeconds < 0.1 {
+					if floatJvmHeapUtil < 20 && floatGcPauseSeconds < 0.1 {
 						toDecreaseMemory = true
 					}
+					klog.Infof("VPA %s:%s metrics JVM:%f GC:%f ", observedVpa.Namespace, observedVpa.Name, floatJvmHeapUtil, floatGcPauseSeconds)
+
 					if toIncreaseMemory || toDecreaseMemory {
 						containerName := model.DefaultAppContainer
 						if container, hasContainerAnnotation := observedVpa.GetAnnotations()[model.AnnotationAppContainer]; hasContainerAnnotation {
@@ -538,25 +547,30 @@ func (feeder *clusterStateFeeder) ApplyJvmRecommendation(observedVpa *vpa_types.
 						klog.Infof("VPA Spec %s in namespace %s needs to adjust memory for container:%s", observedVpa.Name, observedVpa.Namespace, containerName)
 
 						//Check whether the container exists
-						if containerState, ok := containerNameToAggregateStateMap[containerName]; ok {
-							if containerState.NeedsRecommendation() {
-								if toIncreaseMemory {
-									if minMemory, hasMin := customMetrics[model.MetricAppContainerMinMemoryLimits]; hasMin && minMemory.AsApproximateFloat64() > 0 {
-										recommendation[containerName].Target[model.ResourceMemory] =
-											model.ResourceAmount(minMemory.AsApproximateFloat64() * 1.2)
-									}
-								} else if toDecreaseMemory {
-									if maxMemory, hasMax := customMetrics[model.MetricAppContainerMaxMemoryLimits]; hasMax && maxMemory.AsApproximateFloat64() > 0 {
-										recommendation[containerName].Target[model.ResourceMemory] =
-											model.ResourceAmount(maxMemory.AsApproximateFloat64() * 0.9)
-									}
-								}
-								klog.Infof("The container %s of VPA Spec %s in namespace %s got new memory: %d",
-									containerName, observedVpa.Name, observedVpa.Namespace, recommendation[containerName].Target[model.ResourceMemory])
+						//if containerState, hasContainerState := containerNameToAggregateStateMap[containerName]; hasContainerState {
+						//if containerState.NeedsRecommendation() {
+						if toIncreaseMemory {
+							if minMemory, hasMin := customMetrics[model.MetricAppContainerMinMemoryLimits]; hasMin && minMemory.AsApproximateFloat64() > 0 {
+								recommendation[containerName].Target[model.ResourceMemory] =
+									model.ResourceAmount(minMemory.AsApproximateFloat64() * 1.2)
 							}
-						} else {
-							klog.Warningf("The container %s in annotation of VPA Spec %s in namespace %s doesn't exist", containerName, observedVpa.Name, observedVpa.Namespace)
+						} else if toDecreaseMemory {
+							if maxMemory, hasMax := customMetrics[model.MetricAppContainerMaxMemoryLimits]; hasMax && maxMemory.AsApproximateFloat64() > 0 {
+								recommendation[containerName].Target[model.ResourceMemory] =
+									model.ResourceAmount(maxMemory.AsApproximateFloat64() * 0.9)
+							}
 						}
+						klog.Infof("The container %s of VPA Spec %s in namespace %s got new memory: %d",
+							containerName, observedVpa.Name, observedVpa.Namespace, recommendation[containerName].Target[model.ResourceMemory])
+						//} else {
+						//	klog.Infof("The container %s in annotation of VPA Spec %s in namespace %s, NeedsRecommendation: %s",
+						//		containerName, observedVpa.Name, observedVpa.Namespace, containerState.IsUnderVPA)
+						//	klog.Infof("The container %s in annotation of VPA Spec %s in namespace %s, NeedsRecommendation: %s",
+						//		containerName, observedVpa.Name, observedVpa.Namespace, containerState.ScalingMode)
+						//}
+						//} else {
+						//	klog.Warningf("The container %s in annotation of VPA Spec %s in namespace %s doesn't exist", containerName, observedVpa.Name, observedVpa.Namespace)
+						//}
 
 					}
 				} else {
