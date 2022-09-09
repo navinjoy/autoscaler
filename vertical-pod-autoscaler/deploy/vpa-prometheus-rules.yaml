@@ -1,0 +1,38 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    prometheus: k8s-prometheus
+    role: alert-rules
+  name: vpa-jvm-metrics
+  namespace: addon-metricset-ns
+spec:
+  groups:
+    # VPA containers rules
+    - name: vpa.jvm.containers.metrics.rules
+      rules:
+        # namespace + app + container max memory limit
+        - record: namespace_app_container_max_memory_limits
+          expr: |
+            label_join(max by (namespace, app, container) (
+                    sum(kube_pod_container_resource_limits{resource="memory"} or kube_pod_container_resource_requests{resource="memory"} ) by (namespace, pod, container) * on (namespace, pod) group_left(app, apps_deployment)
+                    label_replace(kube_pod_labels{job="kube-state-metrics-v2"}, "app", "$1", "label_app","(.*)")
+                    ), "apps_deployment", "", "app")
+        - record: namespace_app_container_min_memory_limits
+          expr: |
+            label_join(max by (namespace, app, container) (
+                    sum(kube_pod_container_resource_limits{resource="memory"} or kube_pod_container_resource_requests{resource="memory"} ) by (namespace, pod, container) * on (namespace, pod) group_left(app, apps_deployment)
+                    label_replace(kube_pod_labels{job="kube-state-metrics-v2"}, "app", "$1", "label_app","(.*)")
+                    ), "apps_deployment", "", "app")
+
+        # Max Memory on service container only
+        - record: namespace_app_container_app_max_memory_limits
+          expr: namespace_app_container_max_memory_limits{container="app"}
+          labels:
+            intuit_alert: "true"
+
+        # Min Memory on service container only
+        - record: namespace_app_container_app_min_memory_limits
+          expr: namespace_app_container_min_memory_limits{container="app"}
+          labels:
+            intuit_alert: "true"
