@@ -18,8 +18,9 @@ package main
 
 import (
 	"flag"
-	"k8s.io/autoscaler/vertical-pod-autoscaler/pkg/recommender/input"
 	"time"
+
+	"k8s.io/autoscaler/vertical-pod-autoscaler/pkg/recommender/input"
 
 	apiv1 "k8s.io/api/core/v1"
 	"k8s.io/autoscaler/vertical-pod-autoscaler/common"
