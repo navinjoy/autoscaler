@@ -118,11 +118,8 @@ func NewAggregationsConfig(memoryAggregationInterval time.Duration, memoryAggreg
 		HistogramBucketSizeGrowth:      DefaultHistogramBucketSizeGrowth,
 		MemoryHistogramDecayHalfLife:   memoryHistogramDecayHalfLife,
 		CPUHistogramDecayHalfLife:      cpuHistogramDecayHalfLife,
-<<<<<<< HEAD
 		OOMBumpUpRatio:                 oomBumpUpRatio,
 		OOMMinBumpUp:                   oomMinBumpUp,
-=======
->>>>>>> a703c3f6cff1d54dc92378c5baad2c2cccdbbc8f
 	}
 	a.CPUHistogramOptions = a.cpuHistogramOptions()
 	a.MemoryHistogramOptions = a.memoryHistogramOptions()
